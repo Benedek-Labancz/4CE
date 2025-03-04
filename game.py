@@ -80,13 +80,71 @@ def calculate_scoring_positions():
     '''
     Calculate all the possible scoring positions in the form of {(K, L, x, y), (K, L, x, y), (K, L, x, y)}
     '''
-    sc = {} # set of all possible scoring positions
+    '''
+    vertical
+    {(0, 0), (0, 1), (0, 2)}
+    {(1, 0), (1, 1), (1, 2)}
+    {(2, 0), (2, 1), (2, 2)}
+    
+    horizontal
+    {(0, 0), (1, 0), (2, 0)}
+    {(0, 1), (1, 1), (2, 1)}
+    {(0, 2), (1, 2), (2, 2)}
+
+    diagonal
+    {(0, 0), (1, 1), (2, 2)}
+    {(0, 2), (1, 1), (2, 0)}
+    '''
+    '''
+    column (9) same x, y
+    face-diag (8)
+    body-diag (4)
+    '''
+    '''
+    Total number of positions: 72 (2d) + 72 (columns) + 2x8x8(body and face diag) = 272
+    '''
+    def desc(x, y):
+        '''
+        Descartes product of two tuples.
+        e.g.
+        x = (0)
+        y = (0, 1, 2)
+        return [(0, 0), (0, 1), (0, 2)]
+        '''  
+        fin = []
+        for i in range(len(x)):
+            for j in range(len(y)):
+                fin.append((x[i], y[j]))
+        return fin
+
+    sc = [] # set of all possible scoring positions
+    horizontal_xy = [tuple(desc((0, 1, 2), (i,))) for i in [0, 1, 2]]
+    vertical_xy = [tuple(desc((i,), (0, 1, 2))) for i in [0, 1, 2]]
+    diagonal_xy = [((0, 0), (1, 1), (2, 2)), ((0, 2), (1, 1), (2, 0))]
+    xy_options = horizontal_xy + vertical_xy + diagonal_xy # all the possible lineups in 2 dimensions
+
     # 2 dimensions
     for K in [0, 1, 2]:
         for L in [0, 1, 2]:
-            pass
+            for xy_trio in xy_options:
+                sc.append([(K, L) + xy for xy in xy_trio])
 
-def evaluate_action(state, action):
+    # face and body diagonals
+    for kl_trio in xy_options:
+        for xy_trio in xy_options:
+            regular = [kl_trio[i] + xy_trio[i] for i in [0, 1, 2]]
+            reverse = [kl_trio[i] + xy_trio[2 - i] for i in [0, 1, 2]]
+            sc += [regular, reverse]
+    
+    #columns
+    for kl_trio in xy_options:
+        for x in [0, 1, 2]:
+            for y in [0, 1, 2]:
+                sc.append([kl + (x, y) for kl in kl_trio])   
+    return sc
+                
+
+def evaluate_action(state, action, sc):
     '''
     Count the number of points scored by an action.
 
@@ -98,9 +156,21 @@ def evaluate_action(state, action):
     having to pass or calculate the player.
     '''
 
+    def scoring_position(position, clean_state, action):
+        if action in position:
+            for coord in position:
+                if clean_state[coord] != 1:
+                    return False
+            return True
+        else:
+            return False
+
     player = state[action]
     clean_state = (state == player)
-
+    score = 0
+    for position in sc:
+        score += int(scoring_position(position, clean_state, action))
+    return score
 
 def terminal_state(state):
     '''
@@ -126,6 +196,9 @@ class Game:
 if __name__ == '__main__':
 
     print("Welcome to 4CE!")
+    sc = calculate_scoring_positions()
+    print(sc)
+    print(len(sc))
     game = Game()
     print_state(game.state)
     while True:
@@ -137,6 +210,7 @@ if __name__ == '__main__':
 
         game.state = perform_action(game.state, action, game.player)
         print_state(game.state)
+        print(evaluate_action(game.state, action, sc))
         
         if terminal_state(game.state):
             print("The game has ended.")
