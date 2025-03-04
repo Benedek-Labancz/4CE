@@ -31,7 +31,7 @@ def print_state(state):
     print(state_str)
 
 def print_score(score):
-    print(f"[\tX - {score[X]}\tO - {score[O]}\t]")
+    print(f"[X - {score[X]}\tO - {score[O]}]")
 
 class Game:
     def __init__(self):
@@ -51,12 +51,16 @@ class Game:
 
         # stepping the env
         new_state = self.perform_action(self.state, action, self.player)
-        reward = 0 # TODO
+
+        # bookkeeping
+        points_scored = self.evaluate_action(new_state, action)
+        self.score[self.player] += points_scored
+
+        reward = points_scored
         done = self.terminal_state(new_state)
         info = '' # TODO
 
-        # bookkeeping
-        self.score[self.player] += self.evaluate_action(new_state, action)
+        
 
         # preparing the game for next step
         self.state = new_state
