@@ -4,7 +4,7 @@ Under development.
 
 
 Example usage:
-```
+```Python
 import os
 from game import Game, print_state, print_score
 
