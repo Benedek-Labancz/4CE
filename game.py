@@ -1,21 +1,25 @@
 import numpy as np
 import math
+from copy import deepcopy
 
-# Numeric representation of symbols
+# Numeric and string representation of symbols; needed for easy refactoring
 X = 1
 O = -1
 E = 0
 M = 2
 
-# str symbols
 str_symbols = {
-    -1: "O",
-    1: "X",
-    0: "_",
-    2: "M"
+    O: "O",
+    X: "X",
+    E: "_",
+    M: "M"
 }
 
 def print_state(state):
+    '''
+    Prints a state in the terminal.
+    Terminal has to be cleared separately for elegance (see example usage).
+    '''
     state_str = ""
     K, L, x, y = 0, 0, 0, 0
     for i in range(81):
@@ -31,6 +35,9 @@ def print_state(state):
     print(state_str)
 
 def print_score(score):
+    '''
+    Prints game score in the terminal.
+    '''
     print(f"[X - {score[X]}\tO - {score[O]}]")
 
 class Game:
@@ -41,16 +48,30 @@ class Game:
             X: 0,
             O: 0
         }
+        self.action_spec = { # the action specification of the game
+            "shape": (3, 3, 3, 3),
+            "n": 81 # number of all hypothetical actions (middle is always invalid)
+        }
 
         self.scoring_positions = self.calculate_scoring_positions()
 
     def step(self, action):
+        '''
+        Computes the next state of the environment along with the reward
+        given the current state of the game and an action.
+
+        The function is designed to look similar to the OpenAI Gym API,
+        hence the form of the return is `new_state, reward, done, info`,
+        where done indicates whether new_state is terminal, and info is ignored for now.
+        Note that the action is not directly preformed, therefore the state of the game
+        has to be overwritten manually (see example usage).
+        '''
         # validate
         if not self.valid_action(self.state, action):
             raise Exception("Invalid action encountered")
 
         # stepping the env
-        new_state = self.perform_action(self.state, action, self.player)
+        new_state = self.perform_action(deepcopy(self.state), action, self.player)
 
         # bookkeeping
         points_scored = self.evaluate_action(new_state, action)
@@ -59,12 +80,6 @@ class Game:
         reward = points_scored
         done = self.terminal_state(new_state)
         info = '' # TODO
-
-        
-
-        # preparing the game for next step
-        self.state = new_state
-        self.switch_turn()
 
         return new_state, reward, done, info
 
@@ -142,9 +157,31 @@ class Game:
         return sc
 
     def init_state(self):
+        '''
+        Initialize game state, i.e. a blank board.
+        '''
         state = np.zeros((3, 3, 3, 3))
         state[1, 1, 1, 1] = M # middle tile
         return state
+
+    def first_person_state(self, state):
+        '''
+        Convert a state to first-person.
+        A first-person state's symbols are overwritten to X for the current player
+        and O for the opponent.
+        '''
+        def write_symbols(state, coords, symbol):
+            for coord in coords:
+                state[tuple(coord)] = symbol
+            return state
+
+        me_coords = np.transpose((state == self.player).nonzero())
+        other_player = O if self.player == X else X
+        you_coords = np.transpose((state == other_player).nonzero())
+        blank_state = self.init_state()
+        fp_state = write_symbols(blank_state, me_coords, X)
+        fp_state = write_symbols(fp_state, you_coords, O)
+        return fp_state
 
     def perform_action(self, state, action, player):
         '''
@@ -154,6 +191,9 @@ class Game:
         return state
 
     def valid_action(self, state, action):
+        '''
+        CHeck if the chosen action in a state is valid.
+        '''
         if type(action) != tuple:
             return False
         for i in range(len(action)):
@@ -168,6 +208,28 @@ class Game:
         except:
             return False
         return True
+
+    def get_action_mask(self, state):
+        """
+        Mask all invalid states. 
+        Return a list of binary elements representing valid and invalid actions.
+        """
+        mask = (state == 0)
+        mask = mask.reshape(-1)
+        return mask
+
+    def action_to_coords(self, flat_action):
+        '''
+        Convert a flattened action into a regular action.
+        Actions are represented as a single intiger chosen by the agent.
+        We need to convert this intiger index into (K, L, x, y) coordinates.
+        '''
+        i = flat_action
+        K = math.floor(i / 9) % 3
+        L = math.floor(i / 27)
+        x = int(i % 3)
+        y = math.floor(i / 3) % 3
+        return (K, L, x, y)
 
     def evaluate_action(self, state, action):
         '''
@@ -203,3 +265,11 @@ class Game:
         i.e. there are no empty tile left.
         '''
         return (state == E).sum() == 0
+    
+    def reset(self):
+        self.state = self.init_state()
+        self.player = X
+        self.score = {
+            X: 0,
+            O: 0
+        }
