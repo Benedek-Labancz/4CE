@@ -4,29 +4,148 @@ from utils import load_yaml, make_plot
 from game import Game, print_state, print_score
 from agent import Agent, ReplayBuffer
 from log import record_gym, create_experiment, save_model
+from eval import self_play_eval
 import numpy as np
 import torch
 from torch.optim import Adam
 from torch.nn import MSELoss
 from tqdm import tqdm
 import gym
+from collections import defaultdict
 
 def train(game, agent, spec):
     
     buffer = ReplayBuffer(max_size=spec["max_buffer_size"])
     optimizer = Adam(params=agent.Q.parameters(), lr=spec["lr"])
+    loss_module = MSELoss()
 
     t = 0
     T = spec["max_timesteps"]
-    while t < T:
+    episode = 0
+    pbar = tqdm(total=T)
+    
+    # Initialize all logs; they will be in the form [[t1, v1], ..., [tn, vn]] 
+    reward_log = []
+    win_score_log = []
+    average_reward_log = []
+    best_avg_q = 0 # to track the best model performance
+    epsilon_log = []
+    q_log = []
+    grad_log = []
+    eval_log = []
+
+    # Open a new experiment run
+    video_path, plot_path, model_path = create_experiment(args.exp_name, spec)
+
+    # Initial random steps to collect data before training
+    t_init = 0
+    while t_init < spec["init_random_steps"]:
         game.reset()
         done = False
         while not done:
             action = agent.explore_act(game.state)
             new_state, reward, done, info = game.step(action)
-            # TODO: continue here, you want to collect experience, i.e. first-personify current state and extend replay buffer
-            # also set up training arguments in the experiment specification
+            fp_state = game.first_person_state(game.state) # we treat all steps as being done in "first-person" by the agent; thus we use all data and utilize self-play
+            fp_state = game.flatten_state(fp_state) # we need to flatten the state to be fed into the agent's networks
+            fp_new_state = game.first_person_state(new_state)
+            fp_new_state = game.flatten_state(fp_new_state)
+            flat_action = game.coords_to_action(action) # we need flat actions to easily acces the right action value later
+            buffer.extend(fp_state, flat_action, reward, fp_new_state, done)
+            game.state = new_state
+            game.switch_turn()
+            t_init += 1
+            if t_init == spec["init_random_steps"]:
+                break
 
+    # Main collection and training loop
+    while t < T:
+        game.reset()
+        done = False
+        total_rewards = defaultdict(lambda: 0)
+        while not done:
+            # Main data collection
+            action = agent.explore_act(game.state)
+            new_state, reward, done, info = game.step(action)
+            total_rewards[game.player] += reward
+            fp_state = game.first_person_state(game.state)
+            fp_state = game.flatten_state(fp_state)
+            fp_new_state = game.first_person_state(new_state)
+            fp_new_state = game.flatten_state(fp_new_state)
+            flat_action = game.coords_to_action(action)
+            buffer.extend(fp_state, flat_action, reward, fp_new_state, done)
+            game.state = new_state
+            game.switch_turn()
+
+            pbar.update()
+            t += 1
+            if t == T:
+                break
+
+            # Epsilon decay
+            agent.epsilon = max(spec["min_epsilon"], agent.epsilon * spec["epsilon_decay"])
+            epsilon_log.append([t, agent.epsilon])
+
+            # Sync target network weights
+            if t % spec["sync_frequency"] == 0:
+                agent.sync_target()
+
+            # Experience replay
+            if t % spec["optim_frequency"] == 0:
+                avg_q_values = []
+                grad_norms = []
+                for _ in range(spec["optim_iter"]):
+                    samples = buffer.sample(spec["batch_size"])
+                    samples = buffer.batch_samples(samples)
+
+                    target = samples["reward"]
+                    target = target + (1 - samples["done"]) * spec["gamma"] * torch.max(agent.TargetNet(samples["new_state"]))
+                    target = target.reshape(1, -1)
+                    current_estimate = torch.gather(agent.Q(samples["state"]), dim=1, index=samples["action"])
+                    avg_q_values.append(current_estimate.detach().mean())
+
+                    loss_value = loss_module(current_estimate, target)
+                    grad_norm = torch.autograd.grad(loss_value, agent.Q.parameters(), retain_graph=True)[0].norm()
+                    grad_norms.append(grad_norm)
+                    loss_value.backward()
+                    optimizer.step()
+                    optimizer.zero_grad()
+                average_q_value = np.array(avg_q_values).mean().item()
+                q_log.append([t, average_q_value])
+                average_grad_norm = np.array(grad_norms).mean().item()
+                grad_log.append([t, average_grad_norm])
+
+                if average_q_value > best_avg_q:
+                    name_prefix = 'best' # we want to overwrite the best model, as many of that will be produced during training
+                    save_model(agent.Q, model_path, name_prefix)
+                    best_avg_q = average_q_value
+            
+            if t % spec["checkpoint_frequency"] == 0:
+                name_prefix = f'checkpoint_{t}'
+                save_model(agent.Q, model_path, name_prefix)
+
+            if t % spec["eval_frequency"] == 0:
+                performance = self_play_eval(agent, spec["eval_num_episodes"])
+                eval_log.append([t, performance])
+
+        episode += 1
+
+        win_score = max(game.score.values())
+        win_score_log.append([t, win_score])
+        avg_game_reward = sum(total_rewards.values()) / 2
+        reward_log.append([t, avg_game_reward])
+        average_reward = np.mean([reward_log[-i][1] for i in range(1, min(10, len(reward_log)))])
+        average_reward_log.append([t, average_reward])
+
+        if episode % spec["plot_frequency"] == 0:
+            make_plot(reward_log, "Avg Game Reward in 4CE", "Timestep", "Mean reward per game", os.path.join(plot_path, 'v0_reward_per_episode.png'))
+            make_plot(average_reward_log, "Average performance in last 10 games", "Timestep", "Average mean reward", os.path.join(plot_path, 'v0_mean_reward.png'))
+            make_plot(win_score_log, "Winning Score in self-play", "Timestep", "Winning Score", os.path.join(plot_path, 'v0_win.png'))
+            make_plot(epsilon_log, "4CE agent epsilon", "Timestep", "epsilon", os.path.join(plot_path, 'v0_epsilon.png'))
+            make_plot(q_log, "4CE agent's average Q-value", "Timestep", "Mean Q-value", os.path.join(plot_path, 'v0_q.png'))
+            make_plot(grad_log, "Gradient of loss", "Timestep", "Average norm of gradient of loss w.r.t. Q-network", os.path.join(plot_path, 'v0_grad.png'))
+            if len(eval_log) > 0:
+                make_plot(eval_log, "4CE agent average performance", "Timestep", "Mean Reward", os.path.join(plot_path, 'v0_eval.png'))
+            
 
 def vanilla_train_refined(game, agent, spec):
     
@@ -165,7 +284,7 @@ def vanilla_train(game, agent, spec):
     # Initialize all logs; they will be in the form [[t1, v1], ..., [tn, vn]] 
     reward_log = []
     average_reward_log = []
-    best_average_reqard = 0 # to track the best model performance
+    best_average_reward = 0 # to track the best model performance
     epsilon_log = []
     loss_log = []
     q_log = []
@@ -264,10 +383,10 @@ def vanilla_train(game, agent, spec):
         average_reward_log.append([t, average_reward])
 
         # Save best model
-        if average_reward > best_average_reqard:
+        if average_reward > best_average_reward:
             name_prefix = f'best_t{t}_r{round(average_reward)}'
             save_model(agent.Q, model_path, name_prefix)
-            best_average_reqard = average_reward
+            best_average_reward = average_reward
             # Record the performance of the best model
             record_gym(spec["env_name"], agent, video_path, name_prefix)
 
@@ -288,8 +407,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     spec = load_yaml(args.exp_path, args.exp_name)
-    game = gym.make("CartPole-v1")
+    game = Game()
     agent = Agent(game, spec["num_cells"], spec["epsilon"])
 
-    agent = vanilla_train(game, agent, spec)
+    agent = train(game, agent, spec)
 
