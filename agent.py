@@ -44,11 +44,11 @@ class ReplayBuffer:
         }
         '''
         batch = {
-            'state': np.array([sample['state'] for sample in samples]),
-            'action': np.array([sample['action'] for sample in samples]),
-            'reward': np.array([sample['reward'] for sample in samples]),
-            'new_state': np.array([sample['new_state'] for sample in samples]),
-            'done': np.array([sample['done'] for sample in samples])
+            'state': torch.stack([sample['state'] for sample in samples]),
+            'action': torch.tensor([sample['action'] for sample in samples], dtype=torch.int64).reshape(1, -1),
+            'reward': torch.tensor([sample['reward'] for sample in samples], dtype=torch.float32),
+            'new_state': torch.stack([sample['new_state'] for sample in samples]),
+            'done': torch.tensor([sample['done'] for sample in samples], dtype=torch.float32)
         }
         return batch
 
@@ -61,9 +61,7 @@ class QNet(torch.nn.Module):
         self.output = LazyLinear(num_actions)
         self.activation = Tanh()
 
-    def forward(self, state): 
-        #batch_size = state.shape[0] # could be more efficient
-        #state = state.reshape(batch_size, -1)
+    def forward(self, state):
         h = self.activation(self.input(state))
         h = self.activation(self.hidden(h))
         out = self.output(h)
@@ -72,8 +70,8 @@ class QNet(torch.nn.Module):
 class Agent:
     def __init__(self, game, num_cells, epsilon):
         self.game = game
-        #self.num_actions = self.game.action_spec["n"]
-        self.num_actions = self.game.action_space.n
+        self.num_actions = self.game.action_spec["n"]
+        #self.num_actions = self.game.action_space.n # used for vanilla dqn test
         self.Q = QNet(num_cells, self.num_actions)
         self.TargetNet = QNet(num_cells, self.num_actions)
         self.sync_target() # init target with same parameters
@@ -83,8 +81,10 @@ class Agent:
         '''
         Greedily choose an action with the highest state-action value.
         '''
+        state = self.game.flatten_state(state)
         action_values = self.Q(state)
-        action_values = action_values * self.game.get_action_mask(state) # TODO: what about negative values? to those, zero is superior
+        action_mask = self.game.get_action_mask(state)
+        action_values = self.game.mask_actions(action_values, action_mask)
         flat_action = torch.argmax(action_values, dim=0)
         action = self.game.action_to_coords(flat_action)
         return action
@@ -97,7 +97,7 @@ class Agent:
         '''
         if np.random.random() < self.epsilon:
             action_mask = self.game.get_action_mask(state)
-            flat_action = np.random.choice([i for i in range(self.num_actions) if action_mask[i]])
+            flat_action = np.random.choice([i for i in range(self.num_actions) if action_mask[self.game.action_to_coords(i)]])
             action = self.game.action_to_coords(flat_action)
             return action
         else:
