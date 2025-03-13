@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import math
 from copy import deepcopy
@@ -27,7 +28,7 @@ def print_state(state):
         L = math.floor(i / 27)
         x = i % 3
         y = math.floor(i / 9) % 3
-        tile = str_symbols[state[K, L, x, y]]
+        tile = str_symbols[state[K, L, x, y].item()]
         state_str += ' ' + tile
         if x == 2: state_str += ' '
         if K == 2 and x == 2: state_str += '\n'
@@ -160,7 +161,7 @@ class Game:
         '''
         Initialize game state, i.e. a blank board.
         '''
-        state = np.zeros((3, 3, 3, 3))
+        state = torch.zeros((3, 3, 3, 3))
         state[1, 1, 1, 1] = M # middle tile
         return state
 
@@ -175,9 +176,9 @@ class Game:
                 state[tuple(coord)] = symbol
             return state
 
-        me_coords = np.transpose((state == self.player).nonzero())
+        me_coords = np.transpose((np.array(state) == self.player).nonzero())
         other_player = O if self.player == X else X
-        you_coords = np.transpose((state == other_player).nonzero())
+        you_coords = np.transpose((np.array(state) == other_player).nonzero())
         blank_state = self.init_state()
         fp_state = write_symbols(blank_state, me_coords, X)
         fp_state = write_symbols(fp_state, you_coords, O)
@@ -212,12 +213,16 @@ class Game:
     def get_action_mask(self, state):
         """
         Mask all invalid states. 
-        Return a list of binary elements representing valid and invalid actions.
+        Return a binary list indicating valid moves.
         """
         mask = (state == 0)
-        mask = mask.reshape(-1)
         return mask
-
+    
+    def mask_actions(self, action_values, action_mask):
+        inf_tensor = -torch.inf * torch.ones_like(action_values)
+        action_values = torch.where(action_mask == True, action_values, inf_tensor)
+        return action_values
+    
     def action_to_coords(self, flat_action):
         '''
         Convert a flattened action into a regular action.
@@ -231,6 +236,34 @@ class Game:
         y = math.floor(i / 3) % 3
         return (K, L, x, y)
 
+    def coords_to_action(self, coords):
+        '''
+        Convert a (K, L, x, y) action into a flat action.
+        The inverse function of action_to_coords.
+        '''
+        K, L, x, y = coords
+        action = K * 27 + L * 9 + x + y * 3
+        return action
+
+    def flatten_state(self, state):
+        '''
+        Flatten 4-dimensional state.
+        (3, 3, 3, 3) -> (81)
+        '''
+        state = torch.transpose(state, 2, 3)
+        state = torch.transpose(state, 0, 1)
+        state = state.reshape(-1)
+        return state
+    
+    def reshape_state(self, state):
+        '''
+        Inverse function of flatten_state.
+        '''
+        state = state.reshape(3, 3, 3, 3)
+        state = torch.transpose(state, 1, 0)
+        state = torch.transpose(state, 3, 2)
+        return state
+    
     def evaluate_action(self, state, action):
         '''
         Count the number of points scored by an action.
