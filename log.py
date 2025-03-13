@@ -25,7 +25,9 @@ def create_experiment(exp_name, spec):
     exp_path = os.path.join(spec["log_dir"], exp_name)
     if exp_name in os.listdir(spec["log_dir"]):
         if len(os.listdir(exp_path)) != 0:
-            exp_index = int(os.listdir(exp_path)[-1]) + 1
+            indices = os.listdir(exp_path)
+            indices = [int(i) for i in indices]
+            exp_index = max(indices) + 1
         else:
             exp_index = 1
     else:
@@ -51,3 +53,12 @@ def save_model(model, save_folder, name_prefix):
     The model is saved as a .pt file.
     '''
     torch.save(model.state_dict(), os.path.join(save_folder, name_prefix + '.pt'))
+
+
+def load_model(agent, model_path):
+    '''
+    Load a model into an agent's Q-function.
+    '''
+    agent.Q.load_state_dict(torch.load(model_path))
+    return agent
+
