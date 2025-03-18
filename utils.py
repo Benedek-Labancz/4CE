@@ -22,3 +22,19 @@ def make_plot(values, title, x_label, y_label, path):
     plt.ylabel(y_label)
     plt.savefig(path)
     plt.close()
+
+def make_multiplot(values, title, x_label, y_label, path):
+    plt.plot([log[0] for log in values], [log[1] for log in values])
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.savefig(path)
+    plt.close()
+
+def make_histogram(values, title, x_label, y_label, path):
+    plt.hist(values)
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.savefig(path)
+    plt.close()

@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from torch.nn import LazyLinear, ReLU, Tanh
 
+from config import device
+
 
 class ReplayBuffer:
     def __init__(self, max_size):
@@ -45,10 +47,10 @@ class ReplayBuffer:
         '''
         batch = {
             'state': torch.stack([sample['state'] for sample in samples]),
-            'action': torch.tensor([sample['action'] for sample in samples], dtype=torch.int64).reshape(1, -1),
-            'reward': torch.tensor([sample['reward'] for sample in samples], dtype=torch.float32),
+            'action': torch.tensor([sample['action'] for sample in samples], dtype=torch.int64).reshape(1, -1).to(device),
+            'reward': torch.tensor([sample['reward'] for sample in samples], dtype=torch.float32).to(device),
             'new_state': torch.stack([sample['new_state'] for sample in samples]),
-            'done': torch.tensor([sample['done'] for sample in samples], dtype=torch.float32)
+            'done': torch.tensor([sample['done'] for sample in samples], dtype=torch.float32).to(device)
         }
         return batch
 
@@ -72,17 +74,19 @@ class Agent:
         self.game = game
         self.num_actions = self.game.action_spec["n"]
         #self.num_actions = self.game.action_space.n # used for vanilla dqn test
-        self.Q = QNet(num_cells, self.num_actions)
-        self.TargetNet = QNet(num_cells, self.num_actions)
+        self.Q = QNet(num_cells, self.num_actions).to(device)
+        self.TargetNet = QNet(num_cells, self.num_actions).to(device)
         self.sync_target() # init target with same parameters
         self.epsilon = epsilon
 
     def act(self, state):
         '''
         Greedily choose an action with the highest state-action value.
+        Expects the state to be flattened.
         '''
-        state = self.game.flatten_state(state)
         action_values = self.Q(state)
+        print(state)
+        print(action_values)
         action_mask = self.game.get_action_mask(state)
         action_values = self.game.mask_actions(action_values, action_mask)
         flat_action = torch.argmax(action_values, dim=0)
@@ -97,7 +101,7 @@ class Agent:
         '''
         if np.random.random() < self.epsilon:
             action_mask = self.game.get_action_mask(state)
-            flat_action = np.random.choice([i for i in range(self.num_actions) if action_mask[self.game.action_to_coords(i)]])
+            flat_action = np.random.choice([i for i in range(self.num_actions) if action_mask[i]])
             action = self.game.action_to_coords(flat_action)
             return action
         else:

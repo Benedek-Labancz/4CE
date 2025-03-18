@@ -1,15 +1,11 @@
-from game import Game
-from agent import Agent
 from collections import defaultdict
 from tqdm import tqdm
 
-def self_play_eval(agent, num_episodes):
+def self_play_eval(game, agent, num_episodes):
     '''
     Evaluates agent performance, i.e. average undiscounted return
     over a number of episodes.
     '''
-    game = Game()
-
     total_reward_log = []
     pbar = tqdm(total=num_episodes)
     for _ in range(num_episodes):
