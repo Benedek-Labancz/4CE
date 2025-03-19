@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     spec = load_json(args.exp_spec)
 
-    game = _2CE()
+    game = _4CE()
     agent = Agent(game, spec["num_cells"], spec["epsilon"])
     if args.model_path is not None:
         agent = load_model(agent, args.model_path)
