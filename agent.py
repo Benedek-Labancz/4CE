@@ -72,8 +72,7 @@ class QNet(torch.nn.Module):
 class Agent:
     def __init__(self, game, num_cells, epsilon):
         self.game = game
-        self.num_actions = self.game.action_spec["n"]
-        #self.num_actions = self.game.action_space.n # used for vanilla dqn test
+        self.num_actions = self.game.num_actions
         self.Q = QNet(num_cells, self.num_actions).to(device)
         self.TargetNet = QNet(num_cells, self.num_actions).to(device)
         self.sync_target() # init target with same parameters
