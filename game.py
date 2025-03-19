@@ -50,6 +50,37 @@ class Game:
             self.O: 0
         }
 
+    def step(self, action):
+        '''
+        Computes the next state of the environment along with the reward
+        given the current state of the game and an action.
+
+        The function is designed to look similar to the OpenAI Gym API,
+        hence the form of the return is `new_state, reward, done, info`,
+        where done indicates whether new_state is terminal, and info is ignored for now.
+        '''
+        # validate
+        if not self.valid_action(self.state, action):
+            raise Exception("Invalid action encountered")
+
+        # stepping the env
+        new_state = self.perform_action(deepcopy(self.state), action, self.player)
+        self.state = new_state
+
+        # bookkeeping
+        points_scored = self.evaluate_action(new_state, action)
+        self.score[self.player] += points_scored
+
+        reward = points_scored
+
+        done = self.terminal_state(new_state)
+        info = '' # TODO
+
+        # prepare next step
+        self.switch_turn()
+
+        return new_state, reward, done, info
+
     def switch_turn(self):
         if self.player == self.X:
             self.player = self.O
@@ -198,37 +229,6 @@ class _2CE(Game):
         print(state_str)
 
     '''Game utilities.'''
-    def step(self, action):
-        '''
-        Computes the next state of the environment along with the reward
-        given the current state of the game and an action.
-
-        The function is designed to look similar to the OpenAI Gym API,
-        hence the form of the return is `new_state, reward, done, info`,
-        where done indicates whether new_state is terminal, and info is ignored for now.
-        '''
-        # validate
-        if not self.valid_action(self.state, action):
-            raise Exception("Invalid action encountered")
-
-        # stepping the env
-        new_state = self.perform_action(deepcopy(self.state), action, self.player)
-        self.state = new_state
-
-        # bookkeeping
-        points_scored = self.evaluate_action(new_state, action)
-        self.score[self.player] += points_scored
-
-        reward = points_scored
-
-        done = self.terminal_state(new_state)
-        info = '' # TODO
-
-        # prepare next step
-        self.switch_turn()
-
-        return new_state, reward, done, info
-
     def calculate_scoring_positions(self):
         '''
         Calculate all the possible scoring positions in the form of {(x, y), (x, y), (x, y)}
@@ -296,21 +296,12 @@ class _2CE(Game):
 
 
 
-class _4CE:
+class _4CE(Game):
     def __init__(self):
-        self.state = self.init_state()
-        self.player = X
-        self.score = {
-            X: 0,
-            O: 0
-        }
-        self.action_spec = { # the action specification of the game
-            "shape": (3, 3, 3, 3),
-            "n": 81 # number of all hypothetical actions (middle is always invalid)
-        }
-
+        super().__init__(num_dimensions=4, mask_middle=True)
         self.scoring_positions = self.calculate_scoring_positions()
 
+    '''Printing utilities.'''
     def print_state(self, state):
         '''
         Prints a state in the terminal.
@@ -323,53 +314,14 @@ class _4CE:
             L = math.floor(i / 27)
             x = i % 3
             y = math.floor(i / 9) % 3
-            tile = str_symbols[state[K, L, x, y].item()]
+            tile = self.str_symbols[state[K, L, x, y].item()]
             state_str += ' ' + tile
             if x == 2: state_str += ' '
             if K == 2 and x == 2: state_str += '\n'
             if K == 2 and x == 2 and y == 2: state_str += '\n'
         print(state_str)
 
-    def print_score(self, score):
-        '''
-        Prints game score in the terminal.
-        '''
-        print(f"[X - {score[X]}\tO - {score[O]}]")
-
-    def step(self, action):
-        '''
-        Computes the next state of the environment along with the reward
-        given the current state of the game and an action.
-
-        The function is designed to look similar to the OpenAI Gym API,
-        hence the form of the return is `new_state, reward, done, info`,
-        where done indicates whether new_state is terminal, and info is ignored for now.
-        Note that the action is not directly preformed, therefore the state of the game
-        has to be overwritten manually (see example usage).
-        '''
-        # validate
-        if not self.valid_action(self.state, action):
-            raise Exception("Invalid action encountered")
-
-        # stepping the env
-        new_state = self.perform_action(deepcopy(self.state), action, self.player)
-
-        # bookkeeping
-        points_scored = self.evaluate_action(new_state, action)
-        self.score[self.player] += points_scored
-
-        reward = points_scored
-        done = self.terminal_state(new_state)
-        info = '' # TODO
-
-        return new_state, reward, done, info
-
-    def switch_turn(self):
-        if self.player == X:
-            self.player = O
-        else:
-            self.player = X
-
+    '''Game utilities.'''
     def calculate_scoring_positions(self):
         '''
         Calculate all the possible scoring positions in the form of {(K, L, x, y), (K, L, x, y), (K, L, x, y)}
@@ -437,74 +389,7 @@ class _4CE:
                     sc.append([kl + (x, y) for kl in kl_trio])   
         return sc
 
-    def init_state(self):
-        '''
-        Initialize game state, i.e. a blank board.
-        '''
-        state = torch.ones((3, 3, 3, 3)).to(device) * E
-        state[1, 1, 1, 1] = M # middle tile
-        return state
-
-    def first_person_state(self, state):
-        '''
-        Convert a state to first-person.
-        A first-person state's symbols are overwritten to X for the current player
-        and O for the opponent.
-        '''
-        def write_symbols(state, coords, symbol):
-            for coord in coords:
-                state[tuple(coord)] = symbol
-            return state
-
-        me_coords = np.transpose((np.array(state) == self.player).nonzero())
-        other_player = O if self.player == X else X
-        you_coords = np.transpose((np.array(state) == other_player).nonzero())
-        blank_state = self.init_state()
-        fp_state = write_symbols(blank_state, me_coords, X)
-        fp_state = write_symbols(fp_state, you_coords, O)
-        return fp_state
-
-    def perform_action(self, state, action, player):
-        '''
-        Write the player's symbol to the tile defined by action.
-        '''
-        state[action] = player
-        return state
-
-    def valid_action(self, state, action):
-        '''
-        CHeck if the chosen action in a state is valid.
-        '''
-        if type(action) != tuple:
-            return False
-        if len(action) != 4:
-            return False
-        for i in range(len(action)):
-            try:
-                if action[i] < 0 or action[i] > 2:
-                    return False
-            except:
-                return False
-        try:
-            if state[action] != E:
-                return False
-        except:
-            return False
-        return True
-
-    def get_action_mask(self, state):
-        """
-        Mask all invalid states. 
-        Return a binary list indicating valid moves.
-        """
-        mask = (state == E)
-        return mask
-    
-    def mask_actions(self, action_values, action_mask):
-        inf_tensor = -torch.inf * torch.ones_like(action_values)
-        action_values = torch.where(action_mask == True, action_values, inf_tensor)
-        return action_values
-    
+    '''AI Training utilities.'''
     def action_to_coords(self, flat_action):
         '''
         Convert a flattened action into a regular action.
@@ -527,7 +412,7 @@ class _4CE:
         action = K * 27 + L * 9 + x + y * 3
         return action
 
-    def flatten_state(self, state):
+    def flat(self, state):
         '''
         Flatten 4-dimensional state.
         (3, 3, 3, 3) -> (81)
@@ -546,48 +431,6 @@ class _4CE:
         state = torch.transpose(state, 3, 2)
         return state
     
-    def evaluate_action(self, state, action):
-        '''
-        Count the number of points scored by an action.
-
-        Args:
-            state: the state following the action
-            action: the action taken by the actor
-
-        I have chosen to include the state following the action in order to not rely on
-        having to pass or calculate the player.
-        '''
-
-        def scoring_position(position, clean_state, action):
-            if action in position:
-                for coord in position:
-                    if clean_state[coord] != 1:
-                        return False
-                return True
-            else:
-                return False
-
-        player = state[action]
-        clean_state = (state == player)
-        score = 0
-        for position in self.scoring_positions:
-            score += int(scoring_position(position, clean_state, action))
-        return score
-
-    def terminal_state(self, state):
-        '''
-        Returns True if game state is terminal,
-        i.e. there are no empty tile left.
-        '''
-        return (state == E).sum() == 0
-    
-    def reset(self):
-        self.state = self.init_state()
-        self.player = X
-        self.score = {
-            X: 0,
-            O: 0
-        }
 
 class _3CE:
     def __init__(self):
