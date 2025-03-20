@@ -6,8 +6,7 @@ a custom AI model.
 
 from game import _4CE, _2CE
 from agent import Agent
-from utils import load_yaml, load_json
-from log import load_model
+from utils import load_yaml, load_json, load_model
 import torch
 import argparse
 import os
@@ -18,11 +17,12 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str)
     parser.add_argument('--exp_spec', type=str)
     parser.add_argument('--first_player', type=bool)
+    parser.add_argument('--disable_cls', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     spec = load_json(args.exp_spec)
 
-    game = _4CE()
+    game = _2CE()
     agent = Agent(game, spec["num_cells"], spec["epsilon"])
     if args.model_path is not None:
         agent = load_model(agent, args.model_path)
@@ -44,7 +44,8 @@ if __name__ == '__main__':
             fp_state = game.flat(fp_state)
             action = agent.act(fp_state)
             new_state, reward, done, info = game.step(action)
-        os.system("cls||clear")
+        if not args.disable_cls:
+            os.system("cls||clear")
         game.print_state(game.state)
         game.print_score(game.score)
     winner = game.determine_winner()
