@@ -1,7 +1,7 @@
 import yaml
 import json
-from matplotlib import pyplot as plt
-import numpy as np
+import torch
+import os
 
 def load_yaml(filename, param_set):
     with open(filename, 'r') as f:
@@ -14,27 +14,16 @@ def load_json(path):
         data = json.loads(data)
     return data
     
-def make_plot(values, title, x_label, y_label, path):
-    values = np.array(values)
-    plt.plot(values[:, 0], values[:, 1])
-    plt.title(title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.savefig(path)
-    plt.close()
+def save_model(model, save_folder, name_prefix):
+    '''
+    Saves the state_dict of a model to the specified path.
+    The model is saved as a .pt file.
+    '''
+    torch.save(model.state_dict(), os.path.join(save_folder, name_prefix + '.pt'))
 
-def make_multiplot(values, title, x_label, y_label, path):
-    plt.plot([log[0] for log in values], [log[1] for log in values])
-    plt.title(title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.savefig(path)
-    plt.close()
-
-def make_histogram(values, title, x_label, y_label, path):
-    plt.hist(values)
-    plt.title(title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.savefig(path)
-    plt.close()
+def load_model(agent, model_path):
+    '''
+    Load a model into an agent's Q-function.
+    '''
+    agent.Q.load_state_dict(torch.load(model_path))
+    return agent
