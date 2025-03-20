@@ -84,10 +84,11 @@ class Agent:
         Expects the state to be flattened.
         '''
         action_values = self.Q(state)
-        print(state)
-        print(action_values)
+        #print(state)
+        #print(action_values)
         action_mask = self.game.get_action_mask(state)
         action_values = self.game.mask_actions(action_values, action_mask)
+        #print(action_values)
         flat_action = torch.argmax(action_values, dim=0)
         action = self.game.action_to_coords(flat_action)
         return action
