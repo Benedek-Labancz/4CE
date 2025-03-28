@@ -266,7 +266,7 @@ class _2CE(Game):
         i = flat_action
         x = i % 3
         y = math.floor(i / 3)
-        return (x, y)
+        return (int(x), int(y))
     
     def coords_to_action(self, coords):
         '''
@@ -401,7 +401,7 @@ class _4CE(Game):
         L = math.floor(i / 27)
         x = int(i % 3)
         y = math.floor(i / 3) % 3
-        return (K, L, x, y)
+        return (int(K), int(L), int(x), int(y))
 
     def coords_to_action(self, coords):
         '''
