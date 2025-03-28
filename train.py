@@ -42,7 +42,7 @@ def train(game, agent, spec, args):
         logger.add_log("net_reward", title="Episode net-reward", x_label="Net episode reward", y_label="Number of episodes", path="net_reward.png", plot_func=logger.make_histogram)
         logger.add_log("q", title="Q-value", x_label="Episode", y_label="Average Q-value", path="q.png", plot_func=logger.make_line_plot)
         logger.add_log("loss", title="Loss", x_label="Episode", y_label="Average MSE loss", path="loss.png", plot_func=logger.make_line_plot)
-        logger.add_log("grad", title="Gradient of loss w.r.t. Q-network parameters", x_label="Episode", y_label="Average gradient norm", path="grad.png", plot_func=logger.make_line_plot)
+        logger.add_log("grad", title="Gradient of loss w.r.t. Q-network parameters", x_label="Episode", y_label="Average gradient norm", ylim=[0, 1], path="grad.png", plot_func=logger.make_line_plot)
 
     if args.save == True:
         max_q_value = -np.inf
@@ -171,5 +171,5 @@ if __name__ == "__main__":
     game = _2CE()
     agent = Agent(game, spec["num_cells"], spec["epsilon"])
 
-    agent = _train(game, agent, spec, args)
+    agent = train(game, agent, spec, args)
 
