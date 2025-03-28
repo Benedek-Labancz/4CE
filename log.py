@@ -51,12 +51,14 @@ def create_experiment(exp_name, info, spec):
         f.write(info)
     return video_path, plot_path, model_path
 
-def make_plot(values, title, x_label, y_label, path):
+def make_plot(values, title, x_label, y_label, ylim=None, path=None):
     values = np.array(values)
     plt.plot(values[:, 0], values[:, 1])
     plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
+    if ylim is not None:
+        plt.ylim(ylim)
     plt.savefig(path)
     plt.close()
 
@@ -86,11 +88,12 @@ def make_histogram(values, title, x_label, y_label, path):
     plt.close()
 
 class Log:
-    def __init__(self, key, title, x_label=None, y_label=None, path=None, plot_func=lambda: False):
+    def __init__(self, key, title, x_label=None, y_label=None, ylim=None, path=None, plot_func=lambda: False):
         self.key = key
         self.title = title
         self.x_label = x_label
         self.y_label = y_label
+        self.ylim = ylim
         self.path = path
         self.plot_func = plot_func
         self.data = []
@@ -104,10 +107,10 @@ class Logger:
         self.log_path = log_path
         sns.set_theme()
 
-    def add_log(self, key, title, x_label=None, y_label=None, path='default.png', plot_func=lambda: False):
+    def add_log(self, key, title, x_label=None, y_label=None, ylim=None, path='default.png', plot_func=lambda: False):
         if path is None:
             path = self.log_path
-        self.logs[key] = Log(key, title, x_label, y_label, os.path.join(self.log_path, path), plot_func)
+        self.logs[key] = Log(key, title, x_label, y_label, ylim, os.path.join(self.log_path, path), plot_func)
 
     def log(self, key, values):
         self.logs[key].data.append(values)
@@ -124,7 +127,7 @@ class Logger:
     
     def make_line_plot(self, key):
         log = self.logs[key]
-        make_plot(log.data, log.title, log.x_label, log.y_label, log.path)
+        make_plot(log.data, log.title, log.x_label, log.y_label, log.ylim, log.path)
 
     def make_scatter(self, key):
         log = self.logs[key]
