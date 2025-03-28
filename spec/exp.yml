@@ -1,0 +1,106 @@
+v0:
+  game_name: 4CE
+
+  # Agent parameters
+  num_cells: [64, 64]
+  epsilon: 1
+  min_epsilon: 0.1
+
+  # Train parameters
+  max_timesteps: 50000
+  max_reward: 1000
+  optim_iter: 10
+  optim_frequency: 64 # number of env steps between two optim loops
+  batch_size: 128
+  sync_frequency: 10
+  epsilon_decay: 0.99
+  lr: 0.02
+  gamma: 0.99 # discount factor
+
+
+  # Data collection parameters
+  max_buffer_size: 30000
+  init_random_steps: 10000
+
+  # Logging parameters
+  log_dir: ./logs
+  plot_frequency: 10
+
+  # Eval parameters
+  eval_frequency: 2000
+  eval_num_episodes: 10
+
+  # Model saving
+  save_best_model: True
+  checkpoint_frequency: 5000
+
+v0.4:
+
+  game_name: 2CE
+
+  # Agent parameters
+  num_cells: [64, 64]
+  epsilon: 1
+  min_epsilon: 0.1
+
+  # Train parameters
+  max_episodes: 3000
+  max_reward: 1000
+  optim_iter: 10
+  optim_frequency: 1 # number of env steps between two optim loops
+  batch_size: 64
+  sync_frequency: 3
+  epsilon_decay: 0.99
+  lr: 0.02
+  gamma: 0.95 # discount factor
+
+
+  # Data collection parameters
+  max_buffer_size: 5000
+  init_random_episodes: 100
+  Z: 0.3
+
+  # Logging parameters
+  log_dir: ./logs
+  plot_frequency: 200
+
+  # Model saving
+  save_best_model: True
+  checkpoint_frequency: 200
+
+cartpole_1:
+  env_name: CartPole
+
+  # Agent parameters
+  num_cells: [16, 16]
+  epsilon: 0.5
+  min_epsilon: 0.1
+
+  # Train parameters
+  max_timesteps: 50000
+  max_reward: 1000
+  optim_iter: 10
+  optim_frequency: 16 # number of env steps between two optim loops
+  batch_size: 128
+  sync_frequency: 10
+  epsilon_decay: 0.999
+  lr: 0.02
+  gamma: 0.99 # discount factor
+
+
+  # Data collection parameters
+  max_buffer_size: 10000
+  init_random_steps: 2000
+
+  # Logging parameters
+  log_dir: ./logs
+  plot_frequency: 10
+
+  # Recording parameters
+  record_frequency: 1000
+  video_folder: ./logs/videos/cartpole
+  name_prefix: cartpole
+
+  # Model saving
+  save_best_model: True
+  checkpoint_frequency: 5000
