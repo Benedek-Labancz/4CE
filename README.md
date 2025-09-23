@@ -10,5 +10,5 @@ The setting is similar to the one in (Silver et al., 2017, https://www.nature.co
 ### 4CE
 
 4CE is derived from the classic game of Tic-Tac-Toe by extending the board to 4 dimensions and letting players play as long as there is any empty square left on the board. Players take alternating moves, and whoever manages to form a row of three from their symbol along any dimension scores a point.
-The center square is considered unplayable for fairness. Therefore the board consists of $3^4 - 1 = 80$ squares.
+For fairness, the center square is considered unplayable. Therefore the board consists of $3^4 - 1 = 80$ squares.
 The player with the most points at the end of the game wins.
