@@ -1,4 +1,9 @@
-# 4CE
+
+~~~ This repository is outdated. ~~~
+~~~ Fresh code to be uploaded soon. ~~~
+
+---
+
 An extended API for the game 4CE.
 Under development.
 
